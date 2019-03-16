@@ -1,5 +1,5 @@
 // Author: A.Oram (Feb 2018)
-// Last revised March 2019 by E.Crabtree
+// Last revised March 2019 by E.Crabtree, CS1
 
 char EKey = 'd';
 
@@ -24,9 +24,9 @@ char OChars[MAXCHARS],          // Original character string
 
 void get_char(char& a_character)
 {
-  a_character=(char) _getwche();
-  if (a_character=='\r' || a_character=='\n')  // allow the enter key to work as the terminating character too
-    a_character=dollarchar;
+	a_character=(char) _getwche();
+	if (a_character=='\r' || a_character=='\n')  // allow the enter key to work as the terminating character too
+	a_character=dollarchar;
 }
 //-------------------------------------------------------------------------------------------------------------
 
@@ -36,10 +36,42 @@ void get_original_chars(int& length)
   length = 0;
   get_char(next_char);
 
+
+
   while ((length < MAXCHARS) && (next_char != dollarchar))
   {
+	__asm {
+		push eax                // backup EAX to stack
+		mov al, next_char       // copy next_char into last 8 bits of EAX
+		cmp al, '$'             // compare next_char with ascii $
+		je exitLoop             // if next_char is $, exit loop successfully
+		cmp al, '0'             // compare next_char with ascii 0
+		jl upperLetterCheck     // if next_char is less than 48, skip rest of number check
+		cmp al, '9'             // compare next_char with ascii 9
+		jle exitLoop            // if next_char is between 48 and 57, exit loop successfully
+	upperLetterCheck:
+		cmp al, 'A'             // compare next_char with ascii A
+		jl lowerLetterCheck     // if next_char is less than 65, skip rest of upper case letter check
+		cmp al, 'Z'             // compare next_char with ascii Z
+		jle exitLoop            // if next_char is between 65 and 90, exit loop successfully
+	lowerLetterCheck:
+		cmp al, 'a'             // compare next_char with ascii a
+		jl retry                // if next_char is less than 97, show message and restart loop
+		cmp al, 'z'             // compare next_char with ascii z
+		jle exitLoop            // if next_char is between 97 and 122, exit loop successfully
+	retry:
+	}
+	cout << "\nAlphanumeric characters only, please try again > ";
+	__asm {
+		jmp wloop               // restart loop
+	exitLoop:
+	}
     OChars[length++] = next_char;
-    get_char(next_char);
+	__asm {
+	wloop:                      // all loop paths return here before restarting outer while loop
+		pop eax                 // restore EAX from stack
+	}
+	get_char(next_char);
   }
 }
 
@@ -56,25 +88,25 @@ void encrypt_chars (int length, char EKey)
                                         // Note the lamentable lack of comments below!
     __asm
     {                                   
-      push   eax                        // backup eax to stack
-      push   ecx                        // backup ecx to stack
-      push   edx                        // backup edx to stack
+      push   eax                        // backup EAX to stack
+      push   ecx                        // backup ECX to stack
+      push   edx                        // backup EDX to stack
                                         
-      movzx  ecx, temp_char             // move temp_char into ecx
-      lea    eax, EKey                  // move address of EKey into eax
+      movzx  ecx, temp_char             // move temp_char into ECX
+      lea    eax, EKey                  // move address of EKey into EAX
 
-	  push   eax						// push address of Ekey to stack
-	  push   ecx						// push temp_char to stack
+	  push   eax                        // push address of Ekey to stack
+	  push   ecx                        // push temp_char to stack
 
       call   encrypt_11                 // call encryption function
 
-	  add    esp, 8						// return stack pointer to original position prior to function call
+	  add    esp, 8                     // return stack pointer to original position prior to function call
 
-      mov    temp_char, al              // move last 8 bits of eax into temp_char
+      mov    temp_char, al              // move last 8 bits of EAX into temp_char
                                         
-      pop    edx                        // revert edx from stack
-      pop    ecx                        // revert ecx from stack
-      pop    eax                        // revert eax from stack
+      pop    edx                        // revert EDX from stack
+      pop    ecx                        // revert ECX from stack
+      pop    eax                        // revert EAX from stack
     }
     EChars[i] = temp_char;              // store encrypted char in the Encrypted Chars array
   }
@@ -88,32 +120,32 @@ void encrypt_chars (int length, char EKey)
   __asm
   {
   encrypt_11:
-	    push  ebp							// put backup of base pointer in stack
-		mov   ebp, esp						// move base pointer to current position of stack pointer
+	    push  ebp                           // put backup of base pointer in stack
+		mov   ebp, esp                      // move base pointer to current position of stack pointer
 
-		push  edx							// backup edx on stack
-		push  ebx							// backup ebx on stack
+		push  edx                           // backup EDX on stack
+		push  ebx                           // backup EBX on stack
 
-		mov   eax, dword ptr[ebp+12]			// move Ekey into eax from parameters
+		mov   eax, dword ptr[ebp+12]        // move Ekey into eax from parameters
 
-		push  dword ptr[ebp+8]				// push temp_char to stack from parameters
-		and   dword ptr[eax], 0x000000FF	// perform logical AND between Ekey and 255
-		add[eax], 0x02						// add 2 to Ekey
-		ror   byte ptr[eax], 1				// shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
-		ror   byte ptr[eax], 1				// shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
-		mov   edx, [eax]					// store Ekey in edx register
+		push  dword ptr[ebp+8]              // push temp_char to stack from parameters
+		and   dword ptr[eax], 0x000000FF    // perform logical AND between Ekey and 255
+		add   [eax], 0x02                   // add 2 to Ekey
+		ror   byte ptr[eax], 1              // shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
+		ror   byte ptr[eax], 1              // shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
+		mov   edx, [eax]                    // store Ekey in EDX register
 
-		pop   ebx							// pop temp_char from stack into ebx
-		xor   ebx, edx						// EXCLUSIVE OR temp_char with Ekey
-		ror   bl, 1							// shift bits of temp_char to right by 1, preserving digits by rotating them to the other side
+		pop   ebx                           // pop temp_char from stack into EBX
+		xor   ebx, edx                      // EXCLUSIVE OR temp_char with Ekey
+		ror   bl, 1                         // shift bits of temp_char to right by 1, preserving digits by rotating them to the other side
 
-		mov   eax, ebx						// store temp_char in eax ready for cdecl return
+		mov   eax, ebx                      // store temp_char in EAX ready for cdecl return
 
-		pop   ebx							// revert ebx from stack
-		pop   edx							// revert edx from stack
+		pop   ebx                           // revert EBX from stack
+		pop   edx                           // revert EDX from stack
 
-		pop   ebp							// revert base pointer to previous value
-		ret									// return to previous address
+		pop   ebp                           // revert base pointer to previous value
+		ret                                 // return to previous address
   }
 
   //--- End of Assembly code
@@ -142,12 +174,12 @@ void decrypt_chars (int length, char EKey)
 			movzx  ecx, temp_char           // move temp_char into ecx
 			lea    eax, EKey                // move address of EKey into eax
 
-			push   eax						// push address of Ekey to stack
-			push   ecx						// push temp_char to stack
+			push   eax                      // push address of Ekey to stack
+			push   ecx                      // push temp_char to stack
 
-			call decrypt_11					// call decrypt function
+			call   decrypt_11               // call decrypt function
 
-			add    esp, 8					// return stack pointer to original position prior to function call
+			add    esp, 8                   // return stack pointer to original position prior to function call
 
 			mov    temp_char, al            // move last 8 bits of eax into temp_char
 
@@ -163,31 +195,31 @@ void decrypt_chars (int length, char EKey)
 
 	__asm {
 	decrypt_11:
-		push  ebp						// put backup of base pointer in stack
-		mov   ebp, esp					// move base pointer to current position of stack pointer
+		push  ebp                       // put backup of base pointer in stack
+		mov   ebp, esp                  // move base pointer to current position of stack pointer
 
-		push  edx						// backup edx on stack
-		push  ebx						// backup ebx on stack
+		push  edx                       // backup edx on stack
+		push  ebx                       // backup ebx on stack
 
-		mov   eax, dword ptr[ebp+12]	//move EKey pointer into eax
+		mov   eax, dword ptr[ebp+12]    //move EKey pointer into eax
 
-		and dword ptr[eax], 0x000000FF	// perform logical AND between Ekey and 255
-		add[eax], 0x02					// add 2 to Ekey
-		ror   byte ptr[eax], 1			// shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
-		ror   byte ptr[eax], 1			// shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
-		mov   edx, [eax]				// store Ekey in edx register
+		and   dword ptr[eax], 0x000000FF// perform logical AND between Ekey and 255
+		add   [eax], 0x02               // add 2 to Ekey
+		ror   byte ptr[eax], 1          // shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
+		ror   byte ptr[eax], 1          // shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
+		mov   edx, [eax]                // store Ekey in edx register
 
-		mov ebx, [ebp+8]				// move temp_char into ebx
-		rol bl, 1						// shift bits of temp_char to left by 1, preserving digits by rotating them to the other side
-		xor ebx, edx					// EXCLUSIVE OR temp_char with Ekey
+		mov   ebx, [ebp+8]              // move temp_char into ebx
+		rol   bl, 1                     // shift bits of temp_char to left by 1, preserving digits by rotating them to the other side
+		xor   ebx, edx                  // EXCLUSIVE OR temp_char with Ekey
 		
-		mov eax, ebx					// store temp_char in eax ready for cdecl return
+		mov   eax, ebx                  // store temp_char in eax ready for cdecl return
 
-		pop   ebx						// revert ebx from stack
-		pop   edx						// revert edx from stack
+		pop   ebx                       // revert ebx from stack
+		pop   edx                       // revert edx from stack
 
-		pop   ebp						// revert base pointer to previous value
-		ret								// return to previous address
+		pop   ebp                       // revert base pointer to previous value
+		ret                             // return to previous address
 	}
 }
 //*** end of decrypt_chars function
