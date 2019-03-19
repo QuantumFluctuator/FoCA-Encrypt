@@ -24,9 +24,44 @@ char OChars[MAXCHARS],          // Original character string
 
 void get_char(char& a_character)
 {
+	__asm {
+	wloop:
+	}
 	a_character=(char) _getwche();
 	if (a_character=='\r' || a_character=='\n')  // allow the enter key to work as the terminating character too
 	a_character=dollarchar;
+	__asm {
+		push eax                // backup EAX to stack
+		push edx                // backup EDX to stack
+		mov edx, a_character    // move address of a_character into EAX
+		mov al, [eax]           // copy a_character into last 8 bits of EAX
+		cmp al, '$'             // compare a_character with ascii $
+		je exitLoop             // if a_character is $, exit loop successfully
+		cmp al, '0'             // compare a_character with ascii 0
+		jl upperLetterCheck     // if a_character is less than 48, skip rest of number check
+		cmp al, '9'             // compare a_character with ascii 9
+		jle exitLoop            // if a_character is between 48 and 57, exit loop successfully
+	upperLetterCheck:
+		cmp al, 'A'             // compare a_character with ascii A
+		jl lowerLetterCheck     // if a_character is less than 65, skip rest of upper case letter check
+		cmp al, 'Z'             // compare a_character with ascii Z
+		jle exitLoop            // if a_character is between 65 and 90, exit loop successfully
+	lowerLetterCheck:
+		cmp al, 'a'             // compare a_character with ascii a
+		jl retry                // if a_character is less than 97, show message and restart loop
+		cmp al, 'z'             // compare a_character with ascii z
+		jle exitLoop            // if a_character is between 97 and 122, exit loop successfully
+	retry:
+	}
+	cout << "\nAlphanumeric characters only, please try again > ";
+	__asm {
+		pop edx                 // restore EDX backup from stack
+		pop eax                 // restore EAX backup from stack
+		jmp wloop               // return to beginning if bad character entered
+	exitLoop:
+		pop edx                 // restore EDX backup from stack
+		pop eax                 // restore EAX backup from stack
+	}
 }
 //-------------------------------------------------------------------------------------------------------------
 
@@ -36,41 +71,9 @@ void get_original_chars(int& length)
   length = 0;
   get_char(next_char);
 
-
-
   while ((length < MAXCHARS) && (next_char != dollarchar))
   {
-	__asm {
-		push eax                // backup EAX to stack
-		mov al, next_char       // copy next_char into last 8 bits of EAX
-		cmp al, '$'             // compare next_char with ascii $
-		je exitLoop             // if next_char is $, exit loop successfully
-		cmp al, '0'             // compare next_char with ascii 0
-		jl upperLetterCheck     // if next_char is less than 48, skip rest of number check
-		cmp al, '9'             // compare next_char with ascii 9
-		jle exitLoop            // if next_char is between 48 and 57, exit loop successfully
-	upperLetterCheck:
-		cmp al, 'A'             // compare next_char with ascii A
-		jl lowerLetterCheck     // if next_char is less than 65, skip rest of upper case letter check
-		cmp al, 'Z'             // compare next_char with ascii Z
-		jle exitLoop            // if next_char is between 65 and 90, exit loop successfully
-	lowerLetterCheck:
-		cmp al, 'a'             // compare next_char with ascii a
-		jl retry                // if next_char is less than 97, show message and restart loop
-		cmp al, 'z'             // compare next_char with ascii z
-		jle exitLoop            // if next_char is between 97 and 122, exit loop successfully
-	retry:
-	}
-	cout << "\nAlphanumeric characters only, please try again > ";
-	__asm {
-		jmp wloop               // restart loop
-	exitLoop:
-	}
     OChars[length++] = next_char;
-	__asm {
-	wloop:                      // all loop paths return here before restarting outer while loop
-		pop eax                 // restore EAX from stack
-	}
 	get_char(next_char);
   }
 }
