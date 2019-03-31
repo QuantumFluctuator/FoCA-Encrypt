@@ -5,7 +5,11 @@ char EKey = 'd';
 
 #define StudentName "Evan Crabtree"
 
-#define MAXCHARS 6    // minimum of 6
+#define MAXCHARS 6              // max characters, minimum of 6
+
+#define ORIGINALCHARACTERS 0    // 2D index of original character string
+#define ENCRYPTEDCHARACTERS 1   // 2D index of encrypted character string
+#define DECRYPTEDCHARACTERS 2   // 2D index of decrypted character string
 
 using namespace std;
 #include <string>               // for strings
@@ -16,9 +20,7 @@ using namespace std;
 
 #define dollarchar '$'          // string terminator
 
-char OChars[MAXCHARS],          // Original character string
-   EChars[MAXCHARS],            // Encrypted character string
-   DChars[MAXCHARS] = "Soon!";  // Decrypted character string
+char EncryptionData[3][MAXCHARS];
 
 //----------------------------- C++ Functions ----------------------------------------------------------
 
@@ -32,9 +34,8 @@ void get_char(char& a_character)
 	a_character=dollarchar;
 	__asm {
 		push eax                // backup EAX to stack
-		push edx                // backup EDX to stack
-		mov edx, a_character    // move address of a_character into EAX
-		mov al, [eax]           // copy a_character into last 8 bits of EAX
+		mov eax, a_character    // move address of a_character into EAX
+		mov al, [eax]           // copy a_character valeue into last 8 bits of EAX
 		cmp al, '$'             // compare a_character with ascii $
 		je exitLoop             // if a_character is $, exit loop successfully
 		cmp al, '0'             // compare a_character with ascii 0
@@ -55,13 +56,11 @@ void get_char(char& a_character)
 	}
 	cout << "\nAlphanumeric characters only, please try again > ";
 	__asm {
-		pop edx                 // restore EDX backup from stack
 		pop eax                 // restore EAX backup from stack
 		jmp wloop               // return to beginning if bad character entered
 	exitLoop:
-		pop edx                 // restore EDX backup from stack
 		pop eax                 // restore EAX backup from stack
-	}
+	}//--- End of Assembly code
 }
 //-------------------------------------------------------------------------------------------------------------
 
@@ -73,7 +72,7 @@ void get_original_chars(int& length)
 
   while ((length < MAXCHARS) && (next_char != dollarchar))
   {
-    OChars[length++] = next_char;
+    EncryptionData[ORIGINALCHARACTERS][length++] = next_char;
 	get_char(next_char);
   }
 }
@@ -81,77 +80,40 @@ void get_original_chars(int& length)
 //---------------------------------------------------------------------------------------------------------------
 //----------------- ENCRYPTION ROUTINES -------------------------------------------------------------------------
 
-void encrypt_chars (int length, char EKey)
+void encrypt_chars (int lengthOfString, char EKey)
 {
-  char temp_char;                       // Character temporary store
+    __asm {
+	  mov   edx, -1                     // initialise counter to max value so overflow will occur when adding 1 for first run of loop and counter will start at 0
+	  
+	floop:
+	  add   edx, 1                      // add 1 to counter
+	  lea   eax, EncryptionData         // load address of encryption data into EAX
+	  movzx ecx, byte ptr[eax+edx]      // move character into ECX
 
-  for (int i = 0; i < length; i++)      // Encrypt characters one at a time
-  {
-    temp_char = OChars[i];              // Get the next char from Original Chars array
-                                        // Note the lamentable lack of comments below!
-    __asm
-    {                                   
-      push   eax                        // backup EAX to stack
-      push   ecx                        // backup ECX to stack
-      push   edx                        // backup EDX to stack
-                                        
-      movzx  ecx, temp_char             // move temp_char into ECX
-      lea    eax, EKey                  // move address of EKey into EAX
+	  cmp   ecx, 90                     // compare temp_char with ascii 'Z'
+	  jg    isNotUpper                  // jump to else part of if statement
+	  cmp   ecx, 65                     // compare temp_char with ascii 'A'
+	  jl    isNotUpper                  // jump to else part of if statement
+	  add   ecx, 0x20                   // convert temp_char to lower case by adding 32
 
-	  push   eax                        // push address of Ekey to stack
-	  push   ecx                        // push temp_char to stack
+	isNotUpper:
+	  lea   eax, EKey                   // move address of EKey into EAX
+	  and   dword ptr[eax], 0x000000FF  // perform logical AND between Ekey and 255
+	  add   [eax], 0x02                 // add 2 to Ekey
+	  ror   byte ptr[eax], 2            // shifts bits of Ekey to right by 2, preserving digits by rotating them to the other side
+	  mov   eax, [eax]                  // store Ekey in EDX register
 
-      call   encrypt_11                 // call encryption function
+	  xor   ecx, eax                    // EXCLUSIVE OR temp_char with Ekey
+	  ror   cl, 1                       // shift bits of temp_char to right by 1, preserving digits by rotating them to the other side
+	  
+	  lea   eax, EncryptionData         // load address of encryption data into EAX
+	  add   eax, MAXCHARS               // add MAXCHARS to pointer to point at ENCRYPTEDCHARS
+	  mov   byte ptr[eax+edx], cl       // move temp_char into EncyptionData
 
-	  add    esp, 8                     // return stack pointer to original position prior to function call
-
-      mov    temp_char, al              // move last 8 bits of EAX into temp_char
-                                        
-      pop    edx                        // revert EDX from stack
-      pop    ecx                        // revert ECX from stack
-      pop    eax                        // revert EAX from stack
-    }
-    EChars[i] = temp_char;              // store encrypted char in the Encrypted Chars array
-  }
+	  cmp   edx, lengthOfString         // compare counter with length of string
+	  jl    floop                       // jump back to beginning of for loop if counter less than length
+    }//--- End of Assembly code
   return;
-
-  // Inputs:  ebp+8 = 32-bit address of Ekey,
-  //          ebp+12 = the character to be encrypted (in the low 8-bit field, CL).
-
-  // Output: register EAX = the encrypted value of the source character (in the low 8-bit field, AL).
-
-  __asm
-  {
-  encrypt_11:
-	    push  ebp                           // put backup of base pointer in stack
-		mov   ebp, esp                      // move base pointer to current position of stack pointer
-
-		push  edx                           // backup EDX on stack
-		push  ebx                           // backup EBX on stack
-
-		mov   eax, dword ptr[ebp+12]        // move Ekey into eax from parameters
-
-		push  dword ptr[ebp+8]              // push temp_char to stack from parameters
-		and   dword ptr[eax], 0x000000FF    // perform logical AND between Ekey and 255
-		add   [eax], 0x02                   // add 2 to Ekey
-		ror   byte ptr[eax], 1              // shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
-		ror   byte ptr[eax], 1              // shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
-		mov   edx, [eax]                    // store Ekey in EDX register
-
-		pop   ebx                           // pop temp_char from stack into EBX
-		xor   ebx, edx                      // EXCLUSIVE OR temp_char with Ekey
-		ror   bl, 1                         // shift bits of temp_char to right by 1, preserving digits by rotating them to the other side
-
-		mov   eax, ebx                      // store temp_char in EAX ready for cdecl return
-
-		pop   ebx                           // revert EBX from stack
-		pop   edx                           // revert EDX from stack
-
-		pop   ebp                           // revert base pointer to previous value
-		ret                                 // return to previous address
-  }
-
-  //--- End of Assembly code
 }
 //*** end of encrypt_chars function
 //---------------------------------------------------------------------------------------------------------------
@@ -167,63 +129,25 @@ void decrypt_chars (int length, char EKey)
 	char temp_char;
 
 	for (int i(0); i < length; i++) {
-		temp_char = EChars[i];
+		temp_char = EncryptionData[ENCRYPTEDCHARACTERS][i];
 
 		__asm {
-			push   eax                      // backup eax to stack
-			push   ecx                      // backup ecx to stack
-			push   edx                      // backup edx to stack
+			lea    eax, EKey                  // move address of EKey into EAX
+			and   dword ptr[eax], 0x000000FF  // perform logical AND between Ekey and 255
+			add   [eax], 0x02                 // add 2 to Ekey
+			ror   byte ptr[eax], 2            // shifts bits of Ekey to right by 2, preserving digits by rotating them to the other side
+			mov   eax, [eax]                  // store Ekey in EDX register
 
-			movzx  ecx, temp_char           // move temp_char into ecx
-			lea    eax, EKey                // move address of EKey into eax
+			movzx ecx, temp_char              // move temp_char into ECX
+			
+			rol   cl, 1                       // shift bits of temp_char to left by 1, preserving digits by rotating them to the other side
+			xor   ecx, eax                    // EXCLUSIVE OR temp_char with Ekey
 
-			push   eax                      // push address of Ekey to stack
-			push   ecx                      // push temp_char to stack
-
-			call   decrypt_11               // call decrypt function
-
-			add    esp, 8                   // return stack pointer to original position prior to function call
-
-			mov    temp_char, al            // move last 8 bits of eax into temp_char
-
-			pop    edx                      // revert edx from stack
-			pop    ecx                      // revert ecx from stack
-			pop    eax                      // revert eax from stack
-		}
-
-		DChars[i] = temp_char;
+			mov   temp_char, cl               // move last 8 bits of EAX into temp_char
+		}//--- End of Assembly code
+		EncryptionData[DECRYPTEDCHARACTERS][i] = temp_char;
 	}
-
 	return;
-
-	__asm {
-	decrypt_11:
-		push  ebp                       // put backup of base pointer in stack
-		mov   ebp, esp                  // move base pointer to current position of stack pointer
-
-		push  edx                       // backup edx on stack
-		push  ebx                       // backup ebx on stack
-
-		mov   eax, dword ptr[ebp+12]    //move EKey pointer into eax
-
-		and   dword ptr[eax], 0x000000FF// perform logical AND between Ekey and 255
-		add   [eax], 0x02               // add 2 to Ekey
-		ror   byte ptr[eax], 1          // shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
-		ror   byte ptr[eax], 1          // shifts bits of Ekey to right by 1, preserving digits by rotating them to the other side
-		mov   edx, [eax]                // store Ekey in edx register
-
-		mov   ebx, [ebp+8]              // move temp_char into ebx
-		rol   bl, 1                     // shift bits of temp_char to left by 1, preserving digits by rotating them to the other side
-		xor   ebx, edx                  // EXCLUSIVE OR temp_char with Ekey
-		
-		mov   eax, ebx                  // store temp_char in eax ready for cdecl return
-
-		pop   ebx                       // revert ebx from stack
-		pop   edx                       // revert edx from stack
-
-		pop   ebp                       // revert base pointer to previous value
-		ret                             // return to previous address
-	}
 }
 //*** end of decrypt_chars function
 //---------------------------------------------------------------------------------------------------------------
@@ -243,36 +167,36 @@ int main(void)
   EDump << "\nDate: " << GetDate() << "  Time: " << GetTime();
 
   // Display and save initial string
-  cout << "\n\nOriginal string =  " << OChars << "\tHex = ";
-  EDump<< "\n\nOriginal string =  " << OChars << "\tHex = ";
+  cout << "\n\nOriginal string =  " << EncryptionData[ORIGINALCHARACTERS] << "\tHex = ";
+  EDump<< "\n\nOriginal string =  " << EncryptionData[ORIGINALCHARACTERS] << "\tHex = ";
   for (int i = 0; i < char_count; i++)
   {
-    cout << hex << setw(2) << setfill('0') << ((int(OChars[i])) & 0xFF) << "  ";
-    EDump<< hex << setw(2) << setfill('0') << ((int(OChars[i])) & 0xFF) << "  ";
+    cout << hex << setw(2) << setfill('0') << ((int(EncryptionData[ORIGINALCHARACTERS][i])) & 0xFF) << "  ";
+    EDump<< hex << setw(2) << setfill('0') << ((int(EncryptionData[ORIGINALCHARACTERS][i])) & 0xFF) << "  ";
   };
 
   //*****************************************************
   // Encrypt the string and display/save the result
   encrypt_chars (char_count, EKey);
 
-  cout << "\n\nEncrypted string = " << EChars << "\tHex = ";
-  EDump<< "\n\nEncrypted string = " << EChars << "\tHex = ";
+  cout << "\n\nEncrypted string = " << EncryptionData[ENCRYPTEDCHARACTERS] << "\tHex = ";
+  EDump<< "\n\nEncrypted string = " << EncryptionData[ENCRYPTEDCHARACTERS] << "\tHex = ";
   for (int i = 0; i < char_count; i++)
   {
-    cout << ((int(EChars[i])) & 0xFF) << "  ";
-    EDump<< ((int(EChars[i])) & 0xFF) << "  ";
+    cout << ((int(EncryptionData[ENCRYPTEDCHARACTERS][i])) & 0xFF) << "  ";
+    EDump<< ((int(EncryptionData[ENCRYPTEDCHARACTERS][i])) & 0xFF) << "  ";
   }
 
   //*****************************************************
   // Decrypt the encrypted string and display/save the result
   decrypt_chars (char_count, EKey);
 
-  cout << "\n\nDecrypted string = " << DChars << "\tHex = ";
-  EDump<< "\n\nDecrypted string = " << DChars << "\tHex = ";
+  cout << "\n\nDecrypted string = " << EncryptionData[DECRYPTEDCHARACTERS] << "\tHex = ";
+  EDump<< "\n\nDecrypted string = " << EncryptionData[DECRYPTEDCHARACTERS] << "\tHex = ";
   for (int i = 0; i < char_count; i++)
   {
-    cout << ((int(DChars[i])) & 0xFF) << "  ";
-    EDump<< ((int(DChars[i])) & 0xFF) << "  ";
+    cout << ((int(EncryptionData[DECRYPTEDCHARACTERS][i])) & 0xFF) << "  ";
+    EDump<< ((int(EncryptionData[DECRYPTEDCHARACTERS][i])) & 0xFF) << "  ";
   }
   //*****************************************************
 
