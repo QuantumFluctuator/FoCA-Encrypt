@@ -33,7 +33,6 @@ void get_char(char& a_character)
 	if (a_character=='\r' || a_character=='\n')  // allow the enter key to work as the terminating character too
 	a_character=dollarchar;
 	__asm {
-		push eax                // backup EAX to stack
 		mov eax, a_character    // move address of a_character into EAX
 		mov al, [eax]           // copy a_character valeue into last 8 bits of EAX
 		cmp al, '$'             // compare a_character with ascii $
@@ -59,7 +58,6 @@ void get_char(char& a_character)
 		pop eax                 // restore EAX backup from stack
 		jmp wloop               // return to beginning if bad character entered
 	exitLoop:
-		pop eax                 // restore EAX backup from stack
 	}//--- End of Assembly code
 }
 //-------------------------------------------------------------------------------------------------------------
@@ -83,10 +81,9 @@ void get_original_chars(int& length)
 void encrypt_chars (int lengthOfString, char EKey)
 {
     __asm {
-	  mov   edx, -1                     // initialise counter to max value so overflow will occur when adding 1 for first run of loop and counter will start at 0
+	  mov   edx, 0                      // initialise counter to 0
 	  
 	floop:
-	  add   edx, 1                      // add 1 to counter
 	  lea   eax, EncryptionData         // load address of encryption data into EAX
 	  movzx ecx, byte ptr[eax+edx]      // move character into ECX
 
@@ -110,6 +107,7 @@ void encrypt_chars (int lengthOfString, char EKey)
 	  add   eax, MAXCHARS               // add MAXCHARS to pointer to point at ENCRYPTEDCHARS
 	  mov   byte ptr[eax+edx], cl       // move temp_char into EncyptionData
 
+      add   edx, 1                      // add 1 to counter
 	  cmp   edx, lengthOfString         // compare counter with length of string
 	  jl    floop                       // jump back to beginning of for loop if counter less than length
     }//--- End of Assembly code
