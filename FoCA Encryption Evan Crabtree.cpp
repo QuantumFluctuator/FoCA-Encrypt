@@ -55,7 +55,6 @@ void get_char(char& a_character)
 	}
 	cout << "\nAlphanumeric characters only, please try again > ";
 	__asm {
-		pop eax                 // restore EAX backup from stack
 		jmp wloop               // return to beginning if bad character entered
 	exitLoop:
 	}//--- End of Assembly code
