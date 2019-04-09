@@ -106,7 +106,7 @@ void encrypt_chars (int lengthOfString, char EKey)
 	  add   eax, MAXCHARS               // add MAXCHARS to pointer to point at ENCRYPTEDCHARS
 	  mov   byte ptr[eax+edx], cl       // move temp_char into EncyptionData
 
-      add   edx, 1                      // add 1 to counter
+          add   edx, 1                      // add 1 to counter
 	  cmp   edx, lengthOfString         // compare counter with length of string
 	  jl    floop                       // jump back to beginning of for loop if counter less than length
     }//--- End of Assembly code
