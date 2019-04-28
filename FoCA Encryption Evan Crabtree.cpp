@@ -34,7 +34,7 @@ void get_char(char& a_character)
 	a_character=dollarchar;
 	__asm {
 		mov eax, a_character    // move address of a_character into EAX
-		mov al, [eax]           // copy a_character valeue into last 8 bits of EAX
+		mov al, [eax]           // copy a_character value into last 8 bits of EAX
 		cmp al, '$'             // compare a_character with ascii $
 		je exitLoop             // if a_character is $, exit loop successfully
 		cmp al, '0'             // compare a_character with ascii 0
